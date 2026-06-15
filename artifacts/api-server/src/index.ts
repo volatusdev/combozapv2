@@ -14,13 +14,13 @@ setupCallSignaling(httpServer);
 runMigrations()
   .then(() => {
     httpServer.listen(port, () => {
-      logger.info({ port }, "VolatusNet API running");
+      logger.info({ port }, "ComboZap API running");
       startCallReminders();
     });
   })
   .catch((err) => {
     logger.error({ err }, "Startup migrations failed — starting anyway");
     httpServer.listen(port, () => {
-      logger.info({ port }, "VolatusNet API running (migrations skipped)");
+      logger.info({ port }, "ComboZap API running (migrations skipped)");
     });
   });

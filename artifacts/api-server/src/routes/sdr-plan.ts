@@ -74,7 +74,7 @@ router.post("/sdr/plan/purchase", requireAuth, async (req, res) => {
       body: JSON.stringify({
         correlationID: correlationId,
         value: planData.valueCents,
-        comment: `${planData.label} - VolatusNet SDR`,
+        comment: `${planData.label} - ComboZap SDR`,
         customer: {
           name: name.trim(),
           email: email.trim().toLowerCase(),

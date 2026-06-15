@@ -554,7 +554,7 @@ export function SdrAgente() {
                 <div>
                   <label style={LABEL}>Prompt / Personalidade do agente</label>
                   <textarea style={TEXTAREA} value={fPrompt} onChange={e => setFPrompt(e.target.value)}
-                    placeholder={`Você é um assistente de vendas da VolatusNet. Seu objetivo é qualificar leads e apresentar nossos planos de forma consultiva.\n\nSempre seja educado, responda em português, e nunca prometa algo que não está no catálogo...`}
+                    placeholder={`Você é um assistente de vendas da ComboZap. Seu objetivo é qualificar leads e apresentar nossos planos de forma consultiva.\n\nSempre seja educado, responda em português, e nunca prometa algo que não está no catálogo...`}
                     rows={7}
                   />
                   <div style={{ fontSize: 11.5, color: GRAY, marginTop: 5 }}>

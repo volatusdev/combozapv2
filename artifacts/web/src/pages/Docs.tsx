@@ -119,7 +119,7 @@ export function Docs() {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <button onClick={() => setLocation("/")} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 19, fontWeight: 800, color: BLACK, padding: 0 }}>
-            Volatus<span style={{ color: GREEN }}>Net</span>
+            Combo<span style={{ color: GREEN }}>Zap</span>
           </button>
           <span style={{ color: BORDER }}>|</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: GRAY }}>Documentação</span>
@@ -162,7 +162,7 @@ export function Docs() {
           {/* OVERVIEW */}
           <div id="section-overview">
             <SectionTitle
-              title="VolatusNet API"
+              title="ComboZap API"
               subtitle="API REST para integrar agentes externos, chatbots e sistemas com sua central de atendimento WhatsApp."
             />
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 16, marginBottom: 32 }}>
@@ -179,7 +179,7 @@ export function Docs() {
               ))}
             </div>
             <div style={{ background: "#f0fdf4", border: `1px solid #bbf7d0`, borderRadius: 10, padding: "16px 20px", fontSize: 13.5, color: "#166534", lineHeight: 1.6 }}>
-              <strong>Casos de uso:</strong> conecte seu chatbot, CRM externo, sistema de agendamento ou qualquer automação para enviar e receber mensagens WhatsApp via VolatusNet.
+              <strong>Casos de uso:</strong> conecte seu chatbot, CRM externo, sistema de agendamento ou qualquer automação para enviar e receber mensagens WhatsApp via ComboZap.
             </div>
           </div>
 
@@ -221,7 +221,7 @@ export function Docs() {
 
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: BLACK }}>Configurar webhook</h3>
             <p style={{ fontSize: 14, color: GRAY, marginBottom: 0, lineHeight: 1.65 }}>
-              Configure a URL do seu endpoint via API ou pelo painel. O VolatusNet envia um POST para sua URL sempre que um evento ocorrer.
+              Configure a URL do seu endpoint via API ou pelo painel. O ComboZap envia um POST para sua URL sempre que um evento ocorrer.
             </p>
             <CodeBlock lang="bash" code={`curl -X POST ${baseUrl}/api/sdr/whatsapp/webhook \\
   -b cookies.txt \\
@@ -316,7 +316,7 @@ app.listen(3000);`} />
   -d '{
     "slotId": "slot_01",
     "phone": "5511999998888",
-    "message": "Ola! Tudo bem? Aqui e o assistente da VolatusNet."
+    "message": "Ola! Tudo bem? Aqui e o assistente da ComboZap."
   }'`} />
               <h4 style={{ fontSize: 13, fontWeight: 700, color: BLACK, marginBottom: 8 }}>Resposta de sucesso</h4>
               <CodeBlock lang="json" code={`{
@@ -336,7 +336,7 @@ app.listen(3000);`} />
   -d '{
     "slotId": "slot_01",
     "phones": ["5511999990001", "5511999990002", "5511999990003"],
-    "message": "Promocao especial! Use o cupom VOLATUSNET15.",
+    "message": "Promocao especial! Use o cupom COMBOZAP15.",
     "delayMs": 3000
   }'`} />
             </Endpoint>
@@ -367,13 +367,13 @@ async function handleWebhook(req, res) {
     history: await getHistory(message.from),
   });
 
-  // 2. Responder via VolatusNet API
+  // 2. Responder via ComboZap API
   await fetch('${baseUrl}/api/sdr/whatsapp/send', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Cookie': process.env.VOLATUSNET_SESSION,
-      // OU: 'X-Api-Key': process.env.VOLATUSNET_API_KEY
+      'Cookie': process.env.COMBOZAP_SESSION,
+      // OU: 'X-Api-Key': process.env.COMBOZAP_API_KEY
     },
     body: JSON.stringify({
       slotId,
