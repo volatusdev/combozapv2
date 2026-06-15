@@ -1,0 +1,299 @@
+name: Deploy ComboZap
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_SSH_KEY }}
+
+      - name: Add VPS to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -T 15 -p ${{ secrets.VPS_PORT || 22 }} -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts || true
+
+      - name: Write deploy script
+        run: |
+          cat > /tmp/remote_deploy.sh << 'SCRIPTEOF'
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+          set -e
+
+          APP_DIR="/var/www/combozap"
+          REPO="https://github.com/volatusdev-netizen/combozap.git"
+          echo "=== ComboZap Deploy $(date) ==="
+
+          # ── Clonar ou atualizar ────────────────────────────────────────────
+          if [ -d "$APP_DIR/.git" ]; then
+            echo "==> Atualizando código..."
+            cd "$APP_DIR"
+            # Garante que o remote sempre usa o token atual
+            git remote set-url origin "$REPO"
+            git fetch origin main
+            git reset --hard origin/main
+          else
+            echo "==> Primeiro deploy — clonando repositório..."
+            mkdir -p /var/www
+            git clone "$REPO" "$APP_DIR"
+            cd "$APP_DIR"
+          fi
+
+          # ── Verificar .env.production ─────────────────────────────────────
+          if [ ! -f "$APP_DIR/.env.production" ]; then
+            echo "==> Criando .env.production padrão (configure DATABASE_URL e SESSION_SECRET depois!)"
+            printf '%s\n' \
+              'NODE_ENV=production' \
+              'PORT=3001' \
+              'DATABASE_URL=postgresql://combozap:SENHA@localhost:5432/combozap' \
+              'SESSION_SECRET=TROQUE_POR_STRING_ALEATORIA_LONGA' \
+              > "$APP_DIR/.env.production"
+          fi
+
+          # ── Injetar Firebase Admin vars (base64-encoded pelo CI) ─────────────
+          echo "==> Atualizando Firebase Admin vars..."
+          FB_PROJ=$(printf '%s' 'PLACEHOLDER_FB_PROJ' | base64 -d 2>/dev/null || echo '')
+          FB_EMAIL=$(printf '%s' 'PLACEHOLDER_FB_EMAIL' | base64 -d 2>/dev/null || echo '')
+          # Decodifica a chave; escapa newlines reais → \n literal p/ compatibilidade dotenv
+          FB_KEY_RAW=$(printf '%s' 'PLACEHOLDER_FB_KEY' | base64 -d 2>/dev/null || echo '')
+          FB_KEY=$(printf '%s' "$FB_KEY_RAW" | sed ':a;N;$!ba;s/\n/\\n/g')
+          if [ -n "$FB_PROJ" ]; then
+            sed -i '/^FIREBASE_PROJECT_ID=/d; /^FIREBASE_CLIENT_EMAIL=/d; /^FIREBASE_PRIVATE_KEY=/d' "$APP_DIR/.env.production"
+            printf 'FIREBASE_PROJECT_ID=%s\n' "$FB_PROJ" >> "$APP_DIR/.env.production"
+            printf 'FIREBASE_CLIENT_EMAIL=%s\n' "$FB_EMAIL" >> "$APP_DIR/.env.production"
+            # Aspas duplas evitam word-split quando arquivo for lido por shell (source)
+            printf 'FIREBASE_PRIVATE_KEY="%s"\n' "$FB_KEY" >> "$APP_DIR/.env.production"
+            echo "Firebase Admin vars injetadas ✓"
+          else
+            echo "AVISO: Firebase vars não disponíveis (PLACEHOLDER_FB_PROJ não substituído)"
+          fi
+
+          # ── Injetar DATABASE_URL, SESSION_SECRET, OPENAI_API_KEY, WOOVI_API_KEY ──
+          DB_URL=$(printf '%s' 'PLACEHOLDER_DB_URL' | base64 -d 2>/dev/null || echo '')
+          SESSION_SEC=$(printf '%s' 'PLACEHOLDER_SESSION_SEC' | base64 -d 2>/dev/null || echo '')
+          OPENAI_KEY=$(printf '%s' 'PLACEHOLDER_OPENAI_KEY' | base64 -d 2>/dev/null || echo '')
+          WOOVI_KEY=$(printf '%s' 'PLACEHOLDER_WOOVI_KEY' | base64 -d 2>/dev/null || echo '')
+
+          if [ -n "$DB_URL" ]; then
+            sed -i '/^DATABASE_URL=/d' "$APP_DIR/.env.production"
+            printf 'DATABASE_URL=%s\n' "$DB_URL" >> "$APP_DIR/.env.production"
+            echo "DATABASE_URL injetada ✓"
+          else
+            echo "AVISO: DATABASE_URL não disponível — usando valor existente no .env.production"
+          fi
+
+          # Inject APP_DOMAIN (non-secret, must match production domain)
+          sed -i '/^APP_DOMAIN=/d' "$APP_DIR/.env.production"
+          printf 'APP_DOMAIN=%s\n' "app.combozap.com" >> "$APP_DIR/.env.production"
+          echo "APP_DOMAIN injetada ✓"
+
+          if [ -n "$SESSION_SEC" ]; then
+            sed -i '/^SESSION_SECRET=/d' "$APP_DIR/.env.production"
+            printf 'SESSION_SECRET=%s\n' "$SESSION_SEC" >> "$APP_DIR/.env.production"
+            echo "SESSION_SECRET injetada ✓"
+          else
+            echo "AVISO: SESSION_SECRET não disponível — usando valor existente no .env.production"
+          fi
+
+          if [ -n "$OPENAI_KEY" ]; then
+            sed -i '/^OPENAI_API_KEY=/d' "$APP_DIR/.env.production"
+            printf 'OPENAI_API_KEY=%s\n' "$OPENAI_KEY" >> "$APP_DIR/.env.production"
+            echo "OPENAI_API_KEY injetada ✓"
+          else
+            echo "AVISO: OPENAI_API_KEY não disponível — agente IA ficará inativo"
+          fi
+
+          if [ -n "$WOOVI_KEY" ]; then
+            sed -i '/^WOOVI_API_KEY=/d' "$APP_DIR/.env.production"
+            printf 'WOOVI_API_KEY=%s\n' "$WOOVI_KEY" >> "$APP_DIR/.env.production"
+            echo "WOOVI_API_KEY injetada ✓"
+          else
+            echo "AVISO: WOOVI_API_KEY não disponível — PIX ficará inativo"
+          fi
+
+          # ── Dependências ──────────────────────────────────────────────────
+          echo "==> Instalando dependências..."
+          pnpm install --no-frozen-lockfile
+
+          echo "==> Buildando libs..."
+          pnpm run typecheck:libs
+
+          echo "==> Buildando API..."
+          pnpm --filter @workspace/api-server run build
+
+          echo "==> Buildando frontend..."
+          umask 022
+          BASE_PATH=/ pnpm --filter @workspace/web run build
+
+          echo "==> Verificando build..."
+          test -f "$APP_DIR/artifacts/web/dist/public/index.html" \
+            || { echo "ERRO: index.html não encontrado"; exit 1; }
+
+          # ── Frontend → nginx ──────────────────────────────────────────────
+          echo "==> Sincronizando frontend..."
+          mkdir -p /var/www/html/combozap
+          rsync -a --delete --chown=www-data:www-data --chmod=D755,F644 \
+            "$APP_DIR/artifacts/web/dist/public/" /var/www/html/combozap/
+
+          # ── Migrations ────────────────────────────────────────────────────
+          # Lê DATABASE_URL diretamente do arquivo (sem source) para evitar
+          # que valores com espaços (ex: "BEGIN RSA PRIVATE KEY") causem exit 127.
+          echo "==> Aplicando migrations..."
+          DB_URL=$(grep '^DATABASE_URL=' "$APP_DIR/.env.production" | head -1 | cut -d= -f2-)
+          if echo "$DB_URL" | grep -q "SENHA"; then
+            echo "AVISO: DATABASE_URL com valor placeholder — migrations ignoradas. Configure .env.production na VPS."
+          else
+            yes | DATABASE_URL="$DB_URL" pnpm --filter @workspace/db run push \
+              || echo "AVISO: migration falhou — verificar DATABASE_URL no .env.production"
+          fi
+
+          # ── SSL (Let's Encrypt) ───────────────────────────────────────────
+          # Só roda certbot se o cert está ausente ou expira em < 30 dias.
+          # Evita parar nginx em todo deploy (causava SSH timeout).
+          CERT_FILE="/etc/letsencrypt/live/combozap.com/fullchain.pem"
+          NEEDS_CERT=false
+          if [ ! -f "$CERT_FILE" ]; then
+            NEEDS_CERT=true
+            echo "==> Cert ausente — obtendo certificado SSL..."
+          elif ! openssl x509 -checkend $((30*24*3600)) -noout -in "$CERT_FILE" 2>/dev/null; then
+            NEEDS_CERT=true
+            echo "==> Cert expira em < 30 dias — renovando..."
+          else
+            echo "==> Cert SSL válido ✓ (skip certbot)"
+          fi
+
+          if [ "$NEEDS_CERT" = "true" ]; then
+            systemctl stop nginx 2>/dev/null || true
+            # timeout 90s para não travar a conexão SSH
+            timeout 90 certbot certonly --standalone \
+              --cert-name combozap.com \
+              -d combozap.com -d www.combozap.com -d app.combozap.com \
+              --non-interactive --agree-tos -m admin@combozap.com \
+              --expand 2>&1 | tail -10 || echo "AVISO: certbot falhou — verifique DNS"
+
+            if [ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]; then
+              printf '%s\n' \
+                'ssl_session_cache shared:le_nginx_SSL:10m;' \
+                'ssl_session_timeout 1440m;' \
+                'ssl_session_tickets off;' \
+                'ssl_protocols TLSv1.2 TLSv1.3;' \
+                'ssl_prefer_server_ciphers off;' \
+                'ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";' \
+                > /etc/letsencrypt/options-ssl-nginx.conf
+            fi
+            if [ ! -f /etc/letsencrypt/ssl-dhparams.pem ]; then
+              echo "==> Gerando ssl-dhparams.pem..."
+              openssl dhparam -dsaparam -out /etc/letsencrypt/ssl-dhparams.pem 2048 2>/dev/null
+            fi
+          fi
+
+          # ── Nginx — SEMPRE reinicia ────────────────────────────────────────
+          echo "==> Configurando nginx..."
+          cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/combozap
+          ln -sf /etc/nginx/sites-available/combozap /etc/nginx/sites-enabled/combozap
+          rm -f /etc/nginx/sites-enabled/default 2>/dev/null || true
+
+          if [ -f "$CERT_FILE" ]; then
+            nginx -t && systemctl restart nginx
+            echo "==> nginx com SSL ✓"
+          else
+            echo "AVISO: cert ausente — nginx HTTP-only (rode novamente para tentar SSL)"
+            printf '%s\n' \
+              'server {' \
+              '    listen 80;' \
+              '    server_name combozap.com www.combozap.com app.combozap.com;' \
+              '    root /var/www/html/combozap;' \
+              '    location /api/ { proxy_pass http://127.0.0.1:3001; proxy_set_header Host $host; }' \
+              '    location / { try_files $uri $uri/ /index.html; }' \
+              '}' \
+              > /etc/nginx/sites-available/combozap
+            nginx -t && systemctl restart nginx
+          fi
+
+          # ── PM2 ───────────────────────────────────────────────────────────
+          echo "==> Reiniciando API..."
+          pm2 delete volatusnet-api 2>/dev/null || true
+          pm2 delete combozap-api 2>/dev/null || true
+          pm2 start "$APP_DIR/deploy/ecosystem.config.cjs"
+          pm2 save
+
+          # ── Health check ──────────────────────────────────────────────────
+          echo "==> Aguardando API iniciar..."
+          sleep 10
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sk -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/healthz)
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check OK (HTTP $STATUS)"
+              break
+            fi
+            echo "Tentativa $i: HTTP $STATUS, aguardando..."
+            if [ "$i" = "5" ]; then
+              echo "Health check FALHOU — logs PM2:"
+              pm2 logs combozap-api --lines 30 --nostream
+              exit 1
+            fi
+            sleep 5
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "  Deploy completo!"
+          echo "  Landing: https://combozap.com"
+          echo "  App:     https://app.combozap.com"
+          echo "=========================================="
+          SCRIPTEOF
+          chmod +x /tmp/remote_deploy.sh
+
+      - name: Deploy via SSH
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PORT: ${{ secrets.VPS_PORT || 22 }}
+          GH_PAT: ${{ secrets.GH_PAT }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          WOOVI_API_KEY: ${{ secrets.WOOVI_API_KEY }}
+        run: |
+          # Injectar PAT no script antes de enviar (novo nome do repo)
+          sed -i "s|https://github.com/volatusdev-netizen/combozap.git|https://x-access-token:${GH_PAT}@github.com/volatusdev/combozap.git|g" /tmp/remote_deploy.sh
+          sed -i "s|https://github.com/volatusdev/combozap.git|https://x-access-token:${GH_PAT}@github.com/volatusdev/combozap.git|g" /tmp/remote_deploy.sh
+
+          # Injectar Firebase vars como base64 (evita problemas com newlines/chars especiais)
+          FB_PROJ_B64=$(printf '%s' "${FIREBASE_PROJECT_ID}" | base64 -w 0)
+          FB_EMAIL_B64=$(printf '%s' "${FIREBASE_CLIENT_EMAIL}" | base64 -w 0)
+          FB_KEY_B64=$(printf '%s' "${FIREBASE_PRIVATE_KEY}" | base64 -w 0)
+          sed -i "s|PLACEHOLDER_FB_PROJ|${FB_PROJ_B64}|g" /tmp/remote_deploy.sh
+          sed -i "s|PLACEHOLDER_FB_EMAIL|${FB_EMAIL_B64}|g" /tmp/remote_deploy.sh
+          sed -i "s|PLACEHOLDER_FB_KEY|${FB_KEY_B64}|g" /tmp/remote_deploy.sh
+
+          # Injectar DATABASE_URL, SESSION_SECRET, OPENAI_API_KEY, WOOVI_API_KEY como base64
+          DB_URL_B64=$(printf '%s' "${DATABASE_URL}" | base64 -w 0)
+          SESSION_SEC_B64=$(printf '%s' "${SESSION_SECRET}" | base64 -w 0)
+          OPENAI_KEY_B64=$(printf '%s' "${OPENAI_API_KEY}" | base64 -w 0)
+          WOOVI_KEY_B64=$(printf '%s' "${WOOVI_API_KEY}" | base64 -w 0)
+          sed -i "s|PLACEHOLDER_DB_URL|${DB_URL_B64}|g" /tmp/remote_deploy.sh
+          sed -i "s|PLACEHOLDER_SESSION_SEC|${SESSION_SEC_B64}|g" /tmp/remote_deploy.sh
+          sed -i "s|PLACEHOLDER_OPENAI_KEY|${OPENAI_KEY_B64}|g" /tmp/remote_deploy.sh
+          sed -i "s|PLACEHOLDER_WOOVI_KEY|${WOOVI_KEY_B64}|g" /tmp/remote_deploy.sh
+          SSH_OPTS="-p $VPS_PORT -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+          for attempt in 1 2 3; do
+            echo "==> SSH attempt $attempt/3..."
+            ssh $SSH_OPTS "$VPS_USER@$VPS_HOST" 'bash -s' < /tmp/remote_deploy.sh && { echo "Deploy OK"; exit 0; }
+            EXIT=$?
+            if [ $attempt -eq 3 ]; then echo "All SSH attempts failed"; exit $EXIT; fi
+            echo "SSH failed (exit $EXIT), retrying in 20s..."
+            sleep 20
+          done

@@ -1,0 +1,2 @@
+- [VPS deploy setup](vps-deploy.md) — combozap VPS deploy via GitHub Actions SSH; Neon DB; key secrets and env injection details
+- [Schema bootstrap](neon-schema-bootstrap.md) — Neon DB requires manual SQL bootstrap; drizzle-kit push needs yes-pipe in CI for non-interactive TTY
