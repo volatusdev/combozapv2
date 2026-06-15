@@ -28,7 +28,7 @@ const router = Router();
 
 /** Persist clearedAt to disk so it survives PM2 restarts */
 const CLEARED_AT_FILE = path.join(
-  process.env.SESSION_FILE_PATH ?? "/tmp/.volatusnet-sessions",
+  process.env.SESSION_FILE_PATH ?? "/tmp/.combozap-sessions",
   "cleared_at.json"
 );
 const chatClearedAt = new Map<string, number>();
@@ -1487,11 +1487,11 @@ router.post("/sdr/webhook", async (req, res) => {
 // ── WhatsApp connection management ────────────────────────────────────────────
 
 /** Resolve the public domain for webhook registration.
- *  Priority: APP_DOMAIN env var → REPLIT_DOMAINS (dev) → volatusnet.com (prod fallback) */
+ *  Priority: APP_DOMAIN env var → REPLIT_DOMAINS (dev) → combozap.com (prod fallback) */
 function resolveAppDomain(): string {
   if (process.env.APP_DOMAIN) return process.env.APP_DOMAIN;
   const replitDomain = (process.env.REPLIT_DOMAINS ?? "").split(",")[0].trim();
-  return replitDomain || "volatusnet.com";
+  return replitDomain || "combozap.com";
 }
 
 /** Normalize an Evolution API base64 QR to a proper data URI */

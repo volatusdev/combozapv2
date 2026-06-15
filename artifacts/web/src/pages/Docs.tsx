@@ -125,7 +125,7 @@ export function Docs() {
           <span style={{ fontSize: 14, fontWeight: 600, color: GRAY }}>Documentação</span>
         </div>
         <div style={{ display: "flex", gap: 12 }}>
-          <a href="mailto:suporte@volatusnet.com" style={{ fontSize: 13, color: GRAY, textDecoration: "none" }}>Suporte</a>
+          <a href="mailto:suporte@combozap.com" style={{ fontSize: 13, color: GRAY, textDecoration: "none" }}>Suporte</a>
           <button onClick={() => setLocation("/")} style={{ background: GREEN, color: WHITE, border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
             Voltar ao site
           </button>
@@ -505,7 +505,7 @@ async function handleWebhook(req, res) {
 
             <div style={{ background: "#f0fdf4", border: `1px solid #bbf7d0`, borderRadius: 10, padding: "16px 20px", marginTop: 24, fontSize: 13.5, color: "#166534", lineHeight: 1.6 }}>
               <strong>Precisa de ajuda?</strong> Entre em contato via{" "}
-              <a href="mailto:suporte@volatusnet.com" style={{ color: GREEN_DARK, fontWeight: 600 }}>suporte@volatusnet.com</a>{" "}
+              <a href="mailto:suporte@combozap.com" style={{ color: GREEN_DARK, fontWeight: 600 }}>suporte@combozap.com</a>{" "}
               ou abra um ticket no painel. Respondemos em ate 24h.
             </div>
           </div>

@@ -262,6 +262,14 @@ export function SdrDashboard() {
     <Layout>
       <div style={{ padding: "28px 28px 56px", maxWidth: 1120 }}>
 
+        <a href="https://katrivoads.com" target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 24 }}>
+          <img
+            src="/banner.gif"
+            alt="banner"
+            style={{ width: "100%", borderRadius: 14, display: "block", objectFit: "cover", cursor: "pointer" }}
+          />
+        </a>
+
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 28, flexWrap: "wrap", gap: 12 }}>
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, color: C.text, letterSpacing: -0.5 }}>Analytics</div>

@@ -65,7 +65,7 @@ router.post("/sdr/plan/purchase", requireAuth, async (req, res) => {
     res.status(400).json({ error: "CPF ou CNPJ inválido" }); return;
   }
 
-  const correlationId = `volatusnet-sdr-${planType.toLowerCase()}-${userId}-${Date.now()}`;
+  const correlationId = `combozap-sdr-${planType.toLowerCase()}-${userId}-${Date.now()}`;
 
   try {
     const wooviRes = await fetch(`${WOOVI_BASE}/charge`, {

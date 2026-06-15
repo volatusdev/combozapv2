@@ -19,7 +19,7 @@ const isProd = process.env.NODE_ENV === "production";
 
 const productionOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
-  : ["https://volatusnet.com", "https://www.volatusnet.com"];
+  : ["https://combozap.com", "https://www.combozap.com", "https://app.combozap.com"];
 
 app.use(
   pinoHttp({
