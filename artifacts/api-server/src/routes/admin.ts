@@ -31,8 +31,8 @@ export function consumeImpersonationToken(token: string): number | null {
   return entry.userId;
 }
 
-const EVO_URL = process.env.EVO_URL ?? "http://2.25.180.138:8080";
-const EVO_KEY = process.env.EVO_KEY ?? "katrivo-evolution-secret-2025";
+const EVO_URL = process.env.EVO_URL ?? "";
+const EVO_KEY = process.env.EVO_KEY ?? "";
 
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   if (!req.user?.isAdmin) {

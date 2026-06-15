@@ -2,7 +2,7 @@ import { db, callAppointmentsTable } from "@workspace/db";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { logger } from "./logger.js";
 
-const EVO_URL = process.env.EVO_URL ?? "http://2.25.180.138:8080";
+const EVO_URL = process.env.EVO_URL ?? "";
 const EVO_KEY = process.env.EVO_KEY ?? "";
 
 async function sendReminders(): Promise<void> {
